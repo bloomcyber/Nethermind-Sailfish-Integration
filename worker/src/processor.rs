@@ -5,6 +5,7 @@ use crypto::Digest;
 use ed25519_dalek::Digest as _;
 use ed25519_dalek::Sha512;
 use primary::WorkerPrimaryMessage;
+use log::{debug, error};
 use std::convert::TryInto;
 use store::Store;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -36,9 +37,11 @@ impl Processor {
             while let Some(batch) = rx_batch.recv().await {
                 // Hash the batch.
                 let digest = Digest(Sha512::digest(&batch).as_slice()[..32].try_into().unwrap());
+                debug!("Hashed batch to digest {}", digest);
 
                 // Store the batch.
                 store.write(digest.to_vec(), batch).await;
+                debug!("Stored batch {}", digest);
 
                 // Deliver the batch's digest.
                 let message = match own_digest {
