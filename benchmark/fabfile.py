@@ -3,10 +3,8 @@ from fabric import task
 
 from benchmark.local import LocalBench
 from benchmark.logs import ParseError, LogParser
-from benchmark.utils import Print
+from benchmark.utils import Print, BenchError
 from benchmark.plot import Ploter, PlotError
-from benchmark.instance import InstanceManager
-from benchmark.remote import Bench, BenchError
 
 
 @task
@@ -40,6 +38,7 @@ def local(ctx, debug=True):
 @task
 def create(ctx, nodes=1):
     ''' Create a testbed'''
+    from benchmark.instance import InstanceManager
     try:
         InstanceManager.make().create_instances(nodes)
     except BenchError as e:
@@ -49,6 +48,7 @@ def create(ctx, nodes=1):
 @task
 def destroy(ctx):
     ''' Destroy the testbed '''
+    from benchmark.instance import InstanceManager
     try:
         InstanceManager.make().delete_instances()
     except BenchError as e:
@@ -58,6 +58,7 @@ def destroy(ctx):
 @task
 def start(ctx):
     ''' Start at most `max` machines per data center '''
+    from benchmark.instance import InstanceManager
     try:
         InstanceManager.make().start_instances()
     except BenchError as e:
@@ -67,6 +68,7 @@ def start(ctx):
 @task
 def stop(ctx):
     ''' Stop all machines '''
+    from benchmark.instance import InstanceManager
     try:
         InstanceManager.make().stop_instances()
     except BenchError as e:
@@ -76,6 +78,7 @@ def stop(ctx):
 @task
 def info(ctx):
     ''' Display connect information about all the available machines '''
+    from benchmark.instance import InstanceManager
     try:
         InstanceManager.make().print_info()
     except BenchError as e:
@@ -85,6 +88,7 @@ def info(ctx):
 @task
 def install(ctx):
     ''' Install the codebase on all machines '''
+    from benchmark.remote import Bench
     try:
         Bench(ctx).install()
     except BenchError as e:
@@ -119,6 +123,7 @@ def remote(ctx, burst = 50, debug=False):
         'batch_size': 512_000,  # bytes
         'max_batch_delay': 200  # ms
     }
+    from benchmark.remote import Bench
     try:
         Bench(ctx).run(bench_params, node_params, debug)
     except BenchError as e:
@@ -145,6 +150,7 @@ def plot(ctx):
 @task
 def kill(ctx):
     ''' Stop execution on all machines '''
+    from benchmark.remote import Bench
     try:
         Bench(ctx).kill()
     except BenchError as e:
