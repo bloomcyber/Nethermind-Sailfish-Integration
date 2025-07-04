@@ -15,6 +15,7 @@ use std::fs::{OpenOptions};
 use std::io::Write as _;
 use tokio::sync::mpsc::{channel, Receiver};
 use worker::Worker;
+use log::{debug, error};
 
 /// The default channel capacity.
 pub const CHANNEL_CAPACITY: usize = 1_000;
@@ -160,19 +161,29 @@ async fn analyze(mut rx_output: Receiver<Certificate>, mut store: Store, output_
 
     while let Some(certificate) = rx_output.recv().await {
         for (digest, _) in certificate.header.payload.iter() {
+            debug!("Analyzing digest {}", digest);
             match store.read(digest.to_vec()).await {
                 Ok(Some(bytes)) => {
+                    debug!("Read batch {} from store", digest);
                     if let Ok(WorkerMessage::Batch(batch)) = bincode::deserialize::<WorkerMessage>(&bytes) {
                         let record = JsonBatch {
                             batch: base64::encode(&digest.0),
                             transactions: batch.into_iter().map(|tx| base64::encode(&tx)).collect(),
                         };
-                        if let Ok(line) = serde_json::to_string(&record) {
-                            let _ = writeln!(file, "{}", line);
+                        match serde_json::to_string(&record) {
+                            Ok(line) => {
+                                if let Err(e) = writeln!(file, "{}", line) {
+                                    error!("Failed to write batch {} to file: {}", digest, e);
+                                } else {
+                                    debug!("Serialized batch {} to JSON", digest);
+                                }
+                            }
+                            Err(e) => error!("Failed to serialize batch {}: {}", digest, e),
                         }
                     }
                 }
-                _ => {}
+                Ok(None) => debug!("Batch {} not found in store", digest),
+                Err(e) => error!("Store read failed for batch {}: {}", digest, e),
             }
         }
     }
