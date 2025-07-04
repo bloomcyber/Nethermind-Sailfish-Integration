@@ -4,8 +4,9 @@ use config::WorkerId;
 use crypto::Digest;
 use ed25519_dalek::Digest as _;
 use ed25519_dalek::Sha512;
+use hex;
 use primary::WorkerPrimaryMessage;
-use log::{debug, error};
+use log::{debug, error, info};
 use std::convert::TryInto;
 use store::Store;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -38,6 +39,21 @@ impl Processor {
                 // Hash the batch.
                 let digest = Digest(Sha512::digest(&batch).as_slice()[..32].try_into().unwrap());
                 debug!("Hashed batch to digest {}", digest);
+
+                // Try to deserialize the batch to log its transactions.
+                match bincode::deserialize::<crate::worker::WorkerMessage>(&batch) {
+                    Ok(crate::worker::WorkerMessage::Batch(txs)) => {
+                        let tx_strings: Vec<String> = txs.iter().map(|t| hex::encode(t)).collect();
+                        info!("Batch {} contains txs {:?}", digest, tx_strings);
+                    }
+                    Ok(_) => {
+                        // Unexpected worker message variant.
+                        error!("Unexpected worker message for batch {}", digest);
+                    }
+                    Err(e) => {
+                        error!("Failed to deserialize batch {}: {}", digest, e);
+                    }
+                }
 
                 // Store the batch.
                 store.write(digest.to_vec(), batch).await;
