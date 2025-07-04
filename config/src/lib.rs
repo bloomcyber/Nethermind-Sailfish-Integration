@@ -216,7 +216,7 @@ impl Committee {
             .iter()
             .find(|(worker_id, _)| worker_id == &id)
             .map(|(_, worker)| worker.clone())
-            .ok_or_else(|| ConfigError::NotInCommittee(*to))
+            .ok_or_else(|| ConfigError::UnknownWorker(*id))
     }
 
     /// Returns the addresses of all our workers.

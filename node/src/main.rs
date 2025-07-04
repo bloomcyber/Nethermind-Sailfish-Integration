@@ -8,6 +8,11 @@ use consensus::Consensus;
 use env_logger::Env;
 use primary::{Certificate, Primary};
 use store::Store;
+use worker::WorkerMessage;
+use serde::Serialize;
+use base64;
+use std::fs::{OpenOptions};
+use std::io::Write as _;
 use tokio::sync::mpsc::{channel, Receiver};
 use worker::Worker;
 
@@ -87,6 +92,7 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
 
     // Make the data store.
     let store = Store::new(store_path).context("Failed to create a store")?;
+    let mut analysis_store = store.clone();
 
     // Channels the sequence of certificates.
     let (tx_output, rx_output) = channel(CHANNEL_CAPACITY);
@@ -102,7 +108,7 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
                 keypair,
                 committee.clone(),
                 parameters.clone(),
-                store,
+                store.clone(),
                 /* tx_consensus */ tx_new_certificates,
                 /* rx_consensus */ rx_feedback,
                 tx_consensus_header,
@@ -124,21 +130,50 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
                 .unwrap()
                 .parse::<WorkerId>()
                 .context("The worker id must be a positive integer")?;
-            Worker::spawn(keypair.name, id, committee, parameters, store);
+            Worker::spawn(keypair.name, id, committee, parameters, store.clone());
         }
         _ => unreachable!(),
     }
 
     // Analyze the consensus' output.
-    analyze(rx_output).await;
+    use std::path::PathBuf;
+    let output_file = PathBuf::from(store_path).join("ordered_batches.json");
+    analyze(rx_output, analysis_store, output_file).await;
 
     // If this expression is reached, the program ends and all other tasks terminate.
     unreachable!();
 }
 
 /// Receives an ordered list of certificates and apply any application-specific logic.
-async fn analyze(mut rx_output: Receiver<Certificate>) {
-    while let Some(_certificate) = rx_output.recv().await {
-        // NOTE: Here goes the application logic.
+#[derive(Serialize)]
+struct JsonBatch {
+    batch: String,
+    transactions: Vec<String>,
+}
+
+async fn analyze(mut rx_output: Receiver<Certificate>, mut store: Store, output_file: std::path::PathBuf) {
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&output_file)
+        .expect("Failed to open output file");
+
+    while let Some(certificate) = rx_output.recv().await {
+        for (digest, _) in certificate.header.payload.iter() {
+            match store.read(digest.to_vec()).await {
+                Ok(Some(bytes)) => {
+                    if let Ok(WorkerMessage::Batch(batch)) = bincode::deserialize::<WorkerMessage>(&bytes) {
+                        let record = JsonBatch {
+                            batch: base64::encode(&digest.0),
+                            transactions: batch.into_iter().map(|tx| base64::encode(&tx)).collect(),
+                        };
+                        if let Ok(line) = serde_json::to_string(&record) {
+                            let _ = writeln!(file, "{}", line);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 }
