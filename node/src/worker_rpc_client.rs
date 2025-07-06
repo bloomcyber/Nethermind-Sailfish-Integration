@@ -97,27 +97,31 @@ async fn main() -> Result<()> {
         let sig = wallet.sign_transaction(&tx).await?;
         let raw_tx = format!("0x{}", hex::encode(sig.to_vec()));
 
-        let mut endpoints = vec![endpoint.clone()];
-        endpoints.extend(other_endpoints.clone());
-        for ep in &endpoints {
-            let payload = json!({
-                "jsonrpc": "2.0",
-                "method": "eth_sendRawTransaction",
-                "params": [raw_tx.clone()],
-                "id": i,
-            });
-            let resp = client
-                .post(ep)
-                .bearer_auth(&token)
-                .json(&payload)
-                .send()
-                .await;
-            match resp {
-                Ok(r) if r.status().is_success() => info!("sent transaction {} to {}", i, ep),
-                Ok(r) => warn!("failed to send transaction {} to {}: {}", i, ep, r.status()),
-                Err(e) => warn!("failed to send transaction {} to {}: {}", i, ep, e),
-            }
-        }
+        // Previously this client dispatched each signed transaction to all
+        // endpoints using the `eth_sendRawTransaction` RPC call. The current
+        // workload only requires generating the signed payloads, so the
+        // network request logic is disabled for now.
+        // let mut endpoints = vec![endpoint.clone()];
+        // endpoints.extend(other_endpoints.clone());
+        // for ep in &endpoints {
+        //     let payload = json!({
+        //         "jsonrpc": "2.0",
+        //         "method": "eth_sendRawTransaction",
+        //         "params": [raw_tx.clone()],
+        //         "id": i,
+        //     });
+        //     let resp = client
+        //         .post(ep)
+        //         .bearer_auth(&token)
+        //         .json(&payload)
+        //         .send()
+        //         .await;
+        //     match resp {
+        //         Ok(r) if r.status().is_success() => info!("sent transaction {} to {}", i, ep),
+        //         Ok(r) => warn!("failed to send transaction {} to {}: {}", i, ep, r.status()),
+        //         Err(e) => warn!("failed to send transaction {} to {}: {}", i, ep, e),
+        //     }
+        // }
         batch.push(raw_tx);
         if rate > 0 {
             sleep(Duration::from_millis(1000 / rate)).await;
