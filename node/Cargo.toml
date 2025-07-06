@@ -17,6 +17,13 @@ rand = "0.7.3"
 futures = "0.3.15"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+jsonwebtoken = "9"
+ethers-core = "2"
+ethers-signers = "2"
+coins-bip39 = "0.8"
+hex = "0.4"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 base64 = "0.13.0"
 
 config = { path = "../config" }
@@ -33,3 +40,7 @@ benchmark = ["worker/benchmark", "primary/benchmark", "consensus/benchmark"]
 name = "benchmark_client"   
 path = "src/benchmark_client.rs" 
 required-features = ["benchmark"] 
+[[bin]]
+name = "worker_rpc_client"
+path = "src/worker_rpc_client.rs"
+required-features = ["benchmark"]

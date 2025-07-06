@@ -57,11 +57,34 @@ class CommandMaker:
         return f'./benchmark_client {address} --size {size} --burst {burst} --rate {rate} {nodes}'
 
     @staticmethod
+    def run_worker_rpc_client(endpoint, size, burst, rate, nodes, jwt, mnemonic, txs):
+        assert isinstance(endpoint, str)
+        assert isinstance(size, int) and size > 0
+        assert isinstance(burst, int) and burst > 0
+        assert isinstance(rate, int) and rate >= 0
+        assert isinstance(nodes, list)
+        assert all(isinstance(x, str) for x in nodes)
+        assert isinstance(jwt, str)
+        assert isinstance(mnemonic, str)
+        assert isinstance(txs, int) and txs > 0
+        nodes = f'--nodes {" ".join(nodes)}' if nodes else ''
+        return (
+            f'./worker_rpc_client {endpoint} --size {size} --burst {burst} '
+            f'--rate {rate} {nodes} --jwt-secret {jwt} --mnemonic {mnemonic} '
+            f'--transactions {txs}'
+        )
+
+    @staticmethod
     def kill():
         return 'tmux kill-server'
 
     @staticmethod
     def alias_binaries(origin):
         assert isinstance(origin, str)
-        node, client = join(origin, 'node'), join(origin, 'benchmark_client')
-        return f'rm node ; rm benchmark_client ; ln -s {node} . ; ln -s {client} .'
+        node = join(origin, 'node')
+        client = join(origin, 'benchmark_client')
+        rpc_client = join(origin, 'worker_rpc_client')
+        return (
+            f'rm node ; rm benchmark_client ; rm worker_rpc_client ; '
+            f'ln -s {node} . ; ln -s {client} . ; ln -s {rpc_client} .'
+        )
