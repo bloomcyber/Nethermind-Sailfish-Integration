@@ -6,10 +6,10 @@ mkdir -p logs
 BIN=../target/debug/node
 
 BASE=/home/yuvaraj/newSailfish/network_config_files
-PARAMETERS=$BASE/.dev_parameters.json
+PARAMETERS=$BASE/.dev_parameters_transactions.json
  COMMITTEE=$BASE/.two_worker_committee.json
 #COMMITTEE=$BASE/.committee.json
-
+VERBOSITY=-vvvv
 
 
 PID_FILE=sailfish_pids.txt
@@ -21,22 +21,7 @@ if [[ -f $PID_FILE ]]; then
 fi
 
 
-# Start primary nodes
-for i in 0 1 2 3; do
-  echo "Starting primary node-$i"
-  $BIN -vvvv run \
-    --keys $BASE/.node-$i.json \
-    --committee $COMMITTEE \
-    --store .db-$i \
-    --parameters $PARAMETERS \
-    primary > logs/primary-$i.log  2>&1 &
-  echo $! >> sailfish_pids.txt
 
-  # sleep 6000
-  sleep 0.5
-done
-
-# Start worker-0 for each primary
 for i in 0 1 2 3; do
   echo "Starting worker-0 for node-$i"
   $BIN -vvvv run \
@@ -47,11 +32,8 @@ for i in 0 1 2 3; do
     worker --id 0  > logs/worker-$i-0.log  2>&1 &
   echo $! >> sailfish_pids.txt
   sleep 0.5
-done
 
-# Start worker-1 for each primary
- for i in 0 1 2 3; do
-   echo "Starting worker-1 for node-$i"
+  echo "Starting worker-1 for node-$i"
    $BIN -vvvv run \
      --keys $BASE/.node-$i.json \
      --committee $COMMITTEE \
@@ -60,7 +42,20 @@ done
      worker --id 1 > logs/worker-$i-1.log 2>&1 &
    echo $! >> sailfish_pids.txt
    sleep 0.5
- done
+  
+  # Start primary node  
+  echo "Starting primary node-$i"
+  $BIN $VERBOSITY run \
+    --keys $BASE/.node-$i.json \
+    --committee $COMMITTEE \
+    --store .db-$i \
+    --parameters $PARAMETERS \
+    primary > logs/primary-$i.log  2>&1 &
+  echo $! >> sailfish_pids.txt
+
+  # sleep 6000
+  sleep 0.5
+done
 
 
 # Wait for user input to stop all

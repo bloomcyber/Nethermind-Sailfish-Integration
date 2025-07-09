@@ -136,4 +136,52 @@ impl Store {
         }
         result
     }
+
+    pub fn new_read_only(path: &str) -> StoreResult<Self> {
+    let mut opts = rocksdb::Options::default();
+    opts.set_error_if_exists(false);
+    opts.create_if_missing(false);
+
+    match rocksdb::DB::open_cf_for_read_only(&opts, path, vec!["default"], false) {
+        Ok(db) => {
+            debug!("Opened RocksDB store in read-only mode at {}", path);
+            let mut obligations = HashMap::<_, VecDeque<oneshot::Sender<_>>>::new();
+            let (tx, mut rx) = channel(100);
+            tokio::spawn(async move {
+                while let Some(command) = rx.recv().await {
+                    match command {
+                        StoreCommand::Read(key, sender) => {
+                            let response = db.get(&key);
+                            let _ = sender.send(response);
+                        }
+                        StoreCommand::NotifyRead(key, sender) => {
+                            let response = db.get(&key);
+                            match response {
+                                Ok(Some(value)) => {
+                                    let _ = sender.send(Ok(value));
+                                }
+                                Ok(None) => obligations
+                                    .entry(key)
+                                    .or_insert_with(VecDeque::new)
+                                    .push_back(sender),
+                                Err(e) => {
+                                    let _ = sender.send(Err(e));
+                                }
+                            }
+                        }
+                        _ => {
+                            error!("Write commands are not supported in read-only store");
+                        }
+                    }
+                }
+            });
+            Ok(Self { channel: tx })
+        }
+        Err(e) => {
+            error!("Failed to open RocksDB read-only at {}: {}", path, e);
+            Err(e)
+        }
+    }
+}
+
 }

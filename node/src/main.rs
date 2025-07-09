@@ -10,12 +10,13 @@ use primary::{Certificate, Primary};
 use store::Store;
 use worker::WorkerMessage;
 use serde::Serialize;
-use base64;
 use std::fs::{OpenOptions};
 use std::io::Write as _;
+use std::path::{Path, PathBuf};
 use tokio::sync::mpsc::{channel, Receiver};
 use worker::Worker;
-use log::{debug, error};
+use log::{debug, error, warn};
+use hex;
 
 /// The default channel capacity.
 pub const CHANNEL_CAPACITY: usize = 1_000;
@@ -78,12 +79,10 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
     let parameters_file = matches.value_of("parameters");
     let store_path = matches.value_of("store").unwrap();
 
-    // Read the committee and node's keypair from file.
     let keypair = KeyPair::import(key_file).context("Failed to load the node's keypair")?;
     let committee =
         Committee::import(committee_file).context("Failed to load the committee information")?;
 
-    // Load default parameters if none are specified.
     let parameters = match parameters_file {
         Some(filename) => {
             Parameters::import(filename).context("Failed to load the node's parameters")?
@@ -91,16 +90,52 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
         None => Parameters::default(),
     };
 
-    // Make the data store.
     let store = Store::new(store_path).context("Failed to create a store")?;
-    let mut analysis_store = store.clone();
 
-    // Channels the sequence of certificates.
+
+
+    // Determine the correct worker store path based on role
+    let worker_store_path = match matches.subcommand() {
+        ("primary", _) => format!("{}-0", store_path),
+        ("worker", Some(sub_matches)) => {
+            let worker_id = sub_matches
+                .value_of("id")
+                .unwrap()
+                .parse::<WorkerId>()
+                .context("The worker id must be a positive integer")?;
+            format!("{}-{}", store_path, worker_id)
+        }
+        _ => store_path.to_string(), // fallback
+    };
+
+
+    let consensus_output_file = PathBuf::from(store_path).join("ordered_certificates.json");
+    let mut cert_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&consensus_output_file)
+        .expect("Failed to open output file for certificates");
+
+    // let worker_store_path = format!("{}-0", store_path);
+    // let worker_store_path = match matches.subcommand() {
+    //     ("primary", _) => format!("{}-0", store_path),
+    //     _ => store_path.to_string(),
+    // };
+
+    
+    let analysis_store = if Path::new(&worker_store_path).exists() {
+        Store::new_read_only(&worker_store_path).unwrap_or_else(|_| {
+            warn!("Failed to open worker store at '{}'. Using primary store instead.", worker_store_path);
+            store.clone()
+        })
+    } else {
+        warn!("Worker store not found at '{}'. Will skip batch content lookup.", worker_store_path);
+        store.clone()
+    };
+
     let (tx_output, rx_output) = channel(CHANNEL_CAPACITY);
 
-    // Check whether to run a primary, a worker, or an entire authority.
     match matches.subcommand() {
-        // Spawn the primary and consensus core.
         ("primary", _) => {
             let (tx_new_certificates, rx_new_certificates) = channel(CHANNEL_CAPACITY);
             let (tx_feedback, rx_feedback) = channel(CHANNEL_CAPACITY);
@@ -110,21 +145,24 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
                 committee.clone(),
                 parameters.clone(),
                 store.clone(),
-                /* tx_consensus */ tx_new_certificates,
-                /* rx_consensus */ rx_feedback,
+                tx_new_certificates,
+                rx_feedback,
                 tx_consensus_header,
             );
             Consensus::spawn(
                 committee,
                 parameters.gc_depth,
-                /* rx_primary */ rx_new_certificates,
+                rx_new_certificates,
                 rx_consensus_header,
-                /* tx_primary */ tx_feedback,
+                tx_feedback,
                 tx_output,
             );
+
+            let output_file = PathBuf::from(store_path).join("ordered_batches.json");
+            analyze(rx_output, analysis_store, output_file, &mut cert_file).await;
+            unreachable!();
         }
 
-        // Spawn a single worker.
         ("worker", Some(sub_matches)) => {
             let id = sub_matches
                 .value_of("id")
@@ -132,27 +170,23 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
                 .parse::<WorkerId>()
                 .context("The worker id must be a positive integer")?;
             Worker::spawn(keypair.name, id, committee, parameters, store.clone());
+            Ok(())
         }
         _ => unreachable!(),
     }
 
-    // Analyze the consensus' output.
-    use std::path::PathBuf;
-    let output_file = PathBuf::from(store_path).join("ordered_batches.json");
-    analyze(rx_output, analysis_store, output_file).await;
-
-    // If this expression is reached, the program ends and all other tasks terminate.
-    unreachable!();
+    // let output_file = PathBuf::from(store_path).join("ordered_batches.json");
+    // analyze(rx_output, analysis_store, output_file, &mut cert_file).await;
+    // unreachable!();
 }
 
-/// Receives an ordered list of certificates and apply any application-specific logic.
 #[derive(Serialize)]
 struct JsonBatch {
     batch: String,
     transactions: Vec<String>,
 }
 
-async fn analyze(mut rx_output: Receiver<Certificate>, mut store: Store, output_file: std::path::PathBuf) {
+async fn analyze(mut rx_output: Receiver<Certificate>, mut store: Store, output_file: std::path::PathBuf, cert_file: &mut std::fs::File) {
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)
@@ -160,6 +194,12 @@ async fn analyze(mut rx_output: Receiver<Certificate>, mut store: Store, output_
         .expect("Failed to open output file");
 
     while let Some(certificate) = rx_output.recv().await {
+        if let Ok(cert_line) = serde_json::to_string(&certificate) {
+            if let Err(e) = writeln!(cert_file, "{}", cert_line) {
+                error!("Failed to write certificate to file: {}", e);
+            }
+        }
+
         for (digest, _) in certificate.header.payload.iter() {
             debug!("Analyzing digest {}", digest);
             match store.read(digest.to_vec()).await {
@@ -167,8 +207,8 @@ async fn analyze(mut rx_output: Receiver<Certificate>, mut store: Store, output_
                     debug!("Read batch {} from store", digest);
                     if let Ok(WorkerMessage::Batch(batch)) = bincode::deserialize::<WorkerMessage>(&bytes) {
                         let record = JsonBatch {
-                            batch: base64::encode(&digest.0),
-                            transactions: batch.into_iter().map(|tx| base64::encode(&tx)).collect(),
+                            batch: hex::encode(&digest.0),
+                            transactions: batch.into_iter().map(|tx| hex::encode(&tx)).collect(),
                         };
                         match serde_json::to_string(&record) {
                             Ok(line) => {

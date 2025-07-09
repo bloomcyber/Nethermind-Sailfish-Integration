@@ -6,14 +6,13 @@ use env_logger::Env;
 use ethers_core::types::{transaction::eip2718::TypedTransaction, Address, TransactionRequest};
 use ethers_signers::{LocalWallet, MnemonicBuilder, Signer};
 use jsonwebtoken::{encode, EncodingKey, Header};
-use log::{info, warn, error};
+use log::{info, warn};
 use serde::Serialize;
 use serde_json::json;
 use std::fs;
 use chrono::{Duration as ChronoDuration, Utc};
 use reqwest;
 use tokio::time::{sleep, Duration};
-use rand::Rng;
 
 #[derive(Serialize)]
 struct Claims {
@@ -25,7 +24,7 @@ async fn main() -> Result<()> {
     let matches = App::new(crate_name!())
         .version(crate_version!())
         .about("Worker RPC client")
-        .args_from_usage("<RPC> 'The HTTP endpoint of the worker'")
+        .args_from_usage("<RPC> 'The HTTP endpoint of the worker'" )
         .args_from_usage("--size=<INT> 'The size of each transaction in bytes'")
         .args_from_usage("--burst=<INT> 'Burst duration (in ms)'")
         .args_from_usage("--rate=<INT> 'The rate (txs/s) at which to send the transactions'")
@@ -40,35 +39,41 @@ async fn main() -> Result<()> {
         .format_timestamp_millis()
         .init();
 
-    info!("Starting Worker RPC Client...");
-
     let endpoint = matches.value_of("RPC").unwrap().to_string();
-    let size = matches.value_of("size").unwrap().parse::<usize>()
+    let size = matches
+        .value_of("size")
+        .unwrap()
+        .parse::<usize>()
         .context("The size of transactions must be a non-negative integer")?;
-    let burst_duration = matches.value_of("burst").unwrap().parse::<u64>()
+    let burst_duration = matches
+        .value_of("burst")
+        .unwrap()
+        .parse::<u64>()
         .context("Burst duration must be a non-negative integer")?;
-    let rate = matches.value_of("rate").unwrap().parse::<u64>()
+    let rate = matches
+        .value_of("rate")
+        .unwrap()
+        .parse::<u64>()
         .context("The rate of transactions must be a non-negative integer")?;
-    let other_endpoints = matches.values_of("nodes").unwrap_or_default()
-        .into_iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let other_endpoints = matches
+        .values_of("nodes")
+        .unwrap_or_default()
+        .into_iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<_>>();
     let jwt_secret_path = matches.value_of("jwt-secret").unwrap();
     let mnemonic_path = matches.value_of("mnemonic").unwrap();
-    let tx_count = matches.value_of("transactions").unwrap_or("1").parse::<u32>()
+    let tx_count = matches
+        .value_of("transactions")
+        .unwrap_or("1")
+        .parse::<u32>()
         .context("Invalid number of transactions")?;
 
-    info!("Loaded configuration: endpoint={}, size={}, burst={}ms, rate={} tx/s, total txs={}",
-        endpoint, size, burst_duration, rate, tx_count);
-
-    // Read and generate JWT
     let secret = fs::read_to_string(jwt_secret_path).context("Reading JWT secret")?;
     let claims = Claims { exp: (Utc::now() + ChronoDuration::minutes(5)).timestamp() as usize };
     let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.trim().as_bytes()))?;
-    info!("JWT token generated");
 
-    // Load mnemonic
     let mnemonic = fs::read_to_string(mnemonic_path).context("Reading mnemonic")?;
-    info!("Mnemonic loaded");
-
     let client = reqwest::Client::new();
     let mut batch = Vec::new();
     let mut interval = tokio::time::interval(Duration::from_millis(burst_duration));
@@ -76,50 +81,54 @@ async fn main() -> Result<()> {
 
     for i in 0..tx_count {
         interval.as_mut().tick().await;
-
-        info!("Generating transaction {}", i);
-
-        // Derive wallet for index
         let wallet: LocalWallet = MnemonicBuilder::<English>::default()
             .phrase(mnemonic.trim())
             .index(i)
             .context("Deriving key")?
             .build()?
             .with_chain_id(1u64);
-
-        // Random data
-        let mut rng = rand::thread_rng();
-        let random_data: Vec<u8> = (0..size).map(|_| rng.gen()).collect();
-
-        // Create tx
         let tx: TypedTransaction = TransactionRequest::new()
             .to(Address::zero())
             .value(0u64)
-            .data(Bytes::from(random_data))
+            .data(Bytes::from(vec![0u8; size]))
             .nonce(i)
             .from(wallet.address())
             .into();
-
-        // Sign tx
         let sig = wallet.sign_transaction(&tx).await?;
         let raw_tx = format!("0x{}", hex::encode(sig.to_vec()));
 
-        info!("Signed tx {}: {}", i, &raw_tx[..std::cmp::min(30, raw_tx.len())]);
-
-        // Append to batch
+        
+        // let mut endpoints = vec![endpoint.clone()];
+        // endpoints.extend(other_endpoints.clone());
+        // for ep in &endpoints {
+        //     let payload = json!({
+        //         "jsonrpc": "2.0",
+        //         "method": "eth_sendRawTransaction",
+        //         "params": [raw_tx.clone()],
+        //         "id": i,
+        //     });
+        //     let resp = client
+        //         .post(ep)
+        //         .bearer_auth(&token)
+        //         .json(&payload)
+        //         .send()
+        //         .await;
+        //     match resp {
+        //         Ok(r) if r.status().is_success() => info!("sent transaction {} to {}", i, ep),
+        //         Ok(r) => warn!("failed to send transaction {} to {}: {}", i, ep, r.status()),
+        //         Err(e) => warn!("failed to send transaction {} to {}: {}", i, ep, e),
+        //     }
+        // }
         batch.push(raw_tx);
-
-        // Delay based on rate
         if rate > 0 {
             sleep(Duration::from_millis(1000 / rate)).await;
         }
     }
 
-    // Write batch to file
-    let batch_file = "transactions_batch.json";
-    fs::write(batch_file, serde_json::to_string_pretty(&batch)?)
-        .context("Writing batch file")?;
+    fs::write(
+        "transactions_batch.json",
+        serde_json::to_string_pretty(&batch)?,
+    )?;
 
-    info!("✅ Wrote {} transactions to '{}'", batch.len(), batch_file);
     Ok(())
 }
