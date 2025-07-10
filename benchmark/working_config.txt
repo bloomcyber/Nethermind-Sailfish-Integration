@@ -1,0 +1,94 @@
+
+
+#################################################################
+            #!/bin/bash
+
+            set -e
+
+            mkdir -p logs
+            BIN=../target/debug/node
+
+            BASE=/home/yuvaraj/newSailfish/network_config_files
+            PARAMETERS=$BASE/.dev_parameters.json
+            COMMITTEE=$BASE/.two_worker_committee.json
+            #COMMITTEE=$BASE/.committee.json
+            VERBOSITY=-vvvv
+
+
+            PID_FILE=sailfish_pids.txt
+
+            # Clean up any stale PID file from previous runs
+            if [[ -f $PID_FILE ]]; then
+            echo "Removing stale PID file: $PID_FILE"
+            rm $PID_FILE
+            fi
+
+
+
+            for i in 0 1 2 3; do
+            echo "Starting worker-0 for node-$i"
+            $BIN -vvvv run \
+                --keys $BASE/.node-$i.json \
+                --committee $COMMITTEE \
+                --store .db-$i-0 \
+                --parameters $PARAMETERS \
+                worker --id 0  > logs/worker-$i-0.log  2>&1 &
+            echo $! >> sailfish_pids.txt
+            sleep 0.5
+
+            echo "Starting worker-1 for node-$i"
+            $BIN -vvvv run \
+                --keys $BASE/.node-$i.json \
+                --committee $COMMITTEE \
+                --store .db-$i-1 \
+                --parameters $PARAMETERS \
+                worker --id 1 > logs/worker-$i-1.log 2>&1 &
+            echo $! >> sailfish_pids.txt
+            sleep 0.5
+            
+            # Start primary node  
+            echo "Starting primary node-$i"
+            $BIN $VERBOSITY run \
+                --keys $BASE/.node-$i.json \
+                --committee $COMMITTEE \
+                --store .db-$i \
+                --parameters $PARAMETERS \
+                primary > logs/primary-$i.log  2>&1 &
+            echo $! >> sailfish_pids.txt
+
+            # sleep 6000
+            sleep 0.5
+            done
+
+
+            # Wait for user input to stop all
+            echo "All nodes running. Type 'exit' and press Enter to stop them."
+            while read -r input; do
+            if [[ "$input" == "exit" ]]; then
+                echo "Stopping all sailfish node processes..."
+                xargs kill < sailfish_pids.txt
+                rm sailfish_pids.txt
+                break
+            fi
+            echo "Unrecognized input. Type 'exit' to stop."
+            done
+
+
+
+
+##############################################
+ 
+ 
+ 
+ ../target/debug/tcp_tx_sender valid_tx_0.json --addr 127.0.0.1:3014 --delay 500
+
+ cat ../../network_config_files/.dev_parameters.json 
+{
+  "batch_size": 250,             
+  "max_batch_delay": 500,         
+  "header_size": 300,
+  "max_header_delay": 1000,
+  "gc_depth": 50,
+  "sync_retry_delay": 5000,
+  "sync_retry_nodes": 4
+}

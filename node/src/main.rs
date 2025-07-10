@@ -15,7 +15,7 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use tokio::sync::mpsc::{channel, Receiver};
 use worker::Worker;
-use log::{debug, error, warn};
+use log::{debug, error, warn,info};
 use hex;
 
 /// The default channel capacity.
@@ -92,23 +92,6 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
 
     let store = Store::new(store_path).context("Failed to create a store")?;
 
-
-
-    // Determine the correct worker store path based on role
-    let worker_store_path = match matches.subcommand() {
-        ("primary", _) => format!("{}-0", store_path),
-        ("worker", Some(sub_matches)) => {
-            let worker_id = sub_matches
-                .value_of("id")
-                .unwrap()
-                .parse::<WorkerId>()
-                .context("The worker id must be a positive integer")?;
-            format!("{}-{}", store_path, worker_id)
-        }
-        _ => store_path.to_string(), // fallback
-    };
-
-
     let consensus_output_file = PathBuf::from(store_path).join("ordered_certificates.json");
     let mut cert_file = OpenOptions::new()
         .create(true)
@@ -116,21 +99,20 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
         .open(&consensus_output_file)
         .expect("Failed to open output file for certificates");
 
-    // let worker_store_path = format!("{}-0", store_path);
-    // let worker_store_path = match matches.subcommand() {
-    //     ("primary", _) => format!("{}-0", store_path),
-    //     _ => store_path.to_string(),
-    // };
-
-    
-    let analysis_store = if Path::new(&worker_store_path).exists() {
-        Store::new_read_only(&worker_store_path).unwrap_or_else(|_| {
-            warn!("Failed to open worker store at '{}'. Using primary store instead.", worker_store_path);
-            store.clone()
-        })
-    } else {
-        warn!("Worker store not found at '{}'. Will skip batch content lookup.", worker_store_path);
-        store.clone()
+    let analysis_store = match matches.subcommand() {
+        ("primary", _) => {
+            let path = format!("{}-0", store_path);
+            if Path::new(&path).exists() {
+                Store::new_read_only(&path).unwrap_or_else(|_| {
+                    warn!("Failed to open worker store at '{}'. Using primary store instead.", path);
+                    store.clone()
+                })
+            } else {
+                warn!("Worker store not found at '{}'. Will skip batch content lookup.", path);
+                store.clone()
+            }
+        }
+        _ => store.clone(),
     };
 
     let (tx_output, rx_output) = channel(CHANNEL_CAPACITY);
@@ -157,27 +139,33 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
                 tx_feedback,
                 tx_output,
             );
-
             let output_file = PathBuf::from(store_path).join("ordered_batches.json");
             analyze(rx_output, analysis_store, output_file, &mut cert_file).await;
             unreachable!();
         }
-
-        ("worker", Some(sub_matches)) => {
+        // ("worker", Some(sub_matches)) => {
+        //     let id = sub_matches
+        //         .value_of("id")
+        //         .unwrap()
+        //         .parse::<WorkerId>()
+        //         .context("The worker id must be a positive integer")?;
+        //     Worker::spawn(keypair.name, id, committee, parameters, store.clone());
+        // }
+            ("worker", Some(sub_matches)) => {
             let id = sub_matches
                 .value_of("id")
                 .unwrap()
                 .parse::<WorkerId>()
                 .context("The worker id must be a positive integer")?;
-            Worker::spawn(keypair.name, id, committee, parameters, store.clone());
-            Ok(())
+            Worker::spawn(keypair.name, id, committee, parameters, store);
+            info!("Worker spawned. Blocking indefinitely...");
+            tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl+c");
+            info!("Worker received ctrl+c. Exiting.");
         }
         _ => unreachable!(),
     }
 
-    // let output_file = PathBuf::from(store_path).join("ordered_batches.json");
-    // analyze(rx_output, analysis_store, output_file, &mut cert_file).await;
-    // unreachable!();
+    Ok(())
 }
 
 #[derive(Serialize)]

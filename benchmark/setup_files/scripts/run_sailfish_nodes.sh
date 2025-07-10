@@ -3,13 +3,12 @@
 set -e
 
 mkdir -p logs
-BIN=../target/debug/node
+BIN=../target/release/node
 
 BASE=/home/yuvaraj/newSailfish/network_config_files
 PARAMETERS=$BASE/.dev_parameters.json
- COMMITTEE=$BASE/.two_worker_committee.json
-#COMMITTEE=$BASE/.committee.json
-VERBOSITY=-vvvv
+COMMITTEE=$BASE/.two_worker_committee.json
+
 
 
 PID_FILE=sailfish_pids.txt
@@ -21,39 +20,42 @@ if [[ -f $PID_FILE ]]; then
 fi
 
 
-
+# Start primary nodes
 for i in 0 1 2 3; do
-  echo "Starting worker-0 for node-$i"
-  $BIN -vvvv run \
-    --keys $BASE/.node-$i.json \
-    --committee $COMMITTEE \
-    --store .db-$i-0 \
-    --parameters $PARAMETERS \
-    worker --id 0  > logs/worker-$i-0.log  2>&1 &
-  echo $! >> sailfish_pids.txt
-  sleep 0.5
-
-  echo "Starting worker-1 for node-$i"
-   $BIN -vvvv run \
-     --keys $BASE/.node-$i.json \
-     --committee $COMMITTEE \
-     --store .db-$i-1 \
-     --parameters $PARAMETERS \
-     worker --id 1 > logs/worker-$i-1.log 2>&1 &
-   echo $! >> sailfish_pids.txt
-   sleep 0.5
-  
-  # Start primary node  
   echo "Starting primary node-$i"
-  $BIN $VERBOSITY run \
+  $BIN -vvvv run \
     --keys $BASE/.node-$i.json \
     --committee $COMMITTEE \
     --store .db-$i \
     --parameters $PARAMETERS \
-    primary > logs/primary-$i.log  2>&1 &
+    primary > logs/primary-$i.log 2>&1 &
   echo $! >> sailfish_pids.txt
+  sleep 0.5
+done
 
-  # sleep 6000
+# Start worker-0 for each primary
+for i in 0 1 2 3; do
+  echo "Starting worker-0 for node-$i"
+  $BIN -vvvv run \
+    --keys $BASE/.node-$i-0.json \
+    --committee $COMMITTEE \
+    --store .db-$i \
+    --parameters $PARAMETERS \
+    worker --id 0 > logs/worker-$i-0.log 2>&1 &
+  echo $! >> sailfish_pids.txt
+  sleep 0.5
+done
+
+# Start worker-1 for each primary
+for i in 0 1 2 3; do
+  echo "Starting worker-1 for node-$i"
+  $BIN -vvvv run \
+    --keys $BASE/.node-$i-1.json \
+    --committee $COMMITTEE \
+    --store .db-$i \
+    --parameters $PARAMETERS \
+    worker --id 1 > logs/worker-$i-1.log 2>&1 &
+  echo $! >> sailfish_pids.txt
   sleep 0.5
 done
 
