@@ -22,9 +22,9 @@ use std::collections::BTreeMap;
 use std::fs::{File, write};
 use base64::{encode};
 
-use ethers::core::utils::rlp;
-use ethers::types::Transaction;
-use rlp::Rlp;
+// use ethers::core::utils::rlp;
+// use ethers::types::Transaction;
+// use rlp::Rlp;
 
 
 /// The default channel capacity.
@@ -231,75 +231,75 @@ async fn analyze(mut rx_output: Receiver<Certificate>, mut store: Store, output_
 
 
 
+// pub async fn analyze_ether_crate_needed(
+//     mut rx_output: Receiver<Certificate>,
+//     mut store: Store,
+//     output_file2: PathBuf,
+//     cert_file: &mut File,
+// ) -> Result<(), Box<dyn std::error::Error>> {
+//     let mut ordered_batches = Vec::new();
+
+//     while let Some(certificate) = rx_output.recv().await {
+//         let payload = &certificate.header.payload;
+
+//         let mut tx_map = BTreeMap::new();
+//         let mut payload_json = BTreeMap::new();
+
+//         for (digest, worker_id) in payload {
+//             let digest_str = encode(digest);
+//             payload_json.insert(digest_str.clone(), *worker_id);
+
+//             match store.read(digest.to_vec()).await {
+//                 Ok(batch) => {
+//                     let decoded_txs: Vec<String> = match
+//                     batch {
+//                         Some(bytes) => bytes
+//                         .chunks(1)
+//                         .map(|tx_bytes| {
+//                             let rlp_obj = Rlp::new(tx_bytes);
+//                             match Transaction::decode(&rlp_obj) {
+//                                 Ok(tx) => format!("to: {:?}, value: {:?}, nonce: {:?}, gas: {:?}", tx.to, tx.value, tx.nonce, tx.gas),
+//                                 Err(_) => "Invalid Ethereum transaction".to_string(),
+//                     }}).collect(),
+//                         None => vec!
+//                         ["missing".to_string()],
+//                     };
+
+//                     tx_map.insert(digest_str, decoded_txs);
+//                 }
+//                 Err(_) => {
+//                     tx_map.insert(digest_str, vec!["missing".to_string()]);
+//                 }
+//             }
+//         }
+
+//         let cert_with_payload = json!({
+//             "author": certificate.header.author,
+//             "round": certificate.header.round,
+//             "payload": payload_json,
+//             "parents": certificate.header.parents,
+//             "id": certificate.header.id,
+//             "signature": format!("{:?}", certificate.header.signature),
+//             "timeout_cert": certificate.header.timeout_cert,
+//             "no_vote_cert": certificate.header.no_vote_cert,
+//             "transactions": tx_map,
+//             "votes": certificate.votes,
+//         });
+
+//         writeln!(cert_file, "{}", serde_json::to_string_pretty(&cert_with_payload)?)?;
+//     }
+
+//     // write batches summary file
+//     let mut file = File::create(output_file2)?;
+//     file.write_all(serde_json::to_string_pretty(&ordered_batches)?.as_bytes())?;
+
+//     Ok(())
+// }
+
+
+
+
 pub async fn analyze2(
-    mut rx_output: Receiver<Certificate>,
-    mut store: Store,
-    output_file2: PathBuf,
-    cert_file: &mut File,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut ordered_batches = Vec::new();
-
-    while let Some(certificate) = rx_output.recv().await {
-        let payload = &certificate.header.payload;
-
-        let mut tx_map = BTreeMap::new();
-        let mut payload_json = BTreeMap::new();
-
-        for (digest, worker_id) in payload {
-            let digest_str = encode(digest);
-            payload_json.insert(digest_str.clone(), *worker_id);
-
-            match store.read(digest.to_vec()).await {
-                Ok(batch) => {
-                    let decoded_txs: Vec<String> = match
-                    batch {
-                        Some(bytes) => bytes
-                        .chunks(1)
-                        .map(|tx_bytes| {
-                            let rlp_obj = Rlp::new(tx_bytes);
-                            match Transaction::decode(&rlp_obj) {
-                                Ok(tx) => format!("to: {:?}, value: {:?}, nonce: {:?}, gas: {:?}", tx.to, tx.value, tx.nonce, tx.gas),
-                                Err(_) => "Invalid Ethereum transaction".to_string(),
-                        }).collect(),
-                        None => vec!
-                        ["missing".to_string()],
-                    };
-
-                    tx_map.insert(digest_str, decoded_txs);
-                }
-                Err(_) => {
-                    tx_map.insert(digest_str, vec!["missing".to_string()]);
-                }
-            }
-        }
-
-        let cert_with_payload = json!({
-            "author": certificate.header.author,
-            "round": certificate.header.round,
-            "payload": payload_json,
-            "parents": certificate.header.parents,
-            "id": certificate.header.id,
-            "signature": format!("{:?}", certificate.header.signature),
-            "timeout_cert": certificate.header.timeout_cert,
-            "no_vote_cert": certificate.header.no_vote_cert,
-            "transactions": tx_map,
-            "votes": certificate.votes,
-        });
-
-        writeln!(cert_file, "{}", serde_json::to_string_pretty(&cert_with_payload)?)?;
-    }
-
-    // write batches summary file
-    let mut file = File::create(output_file2)?;
-    file.write_all(serde_json::to_string_pretty(&ordered_batches)?.as_bytes())?;
-
-    Ok(())
-}
-
-
-
-
-pub async fn analyze_working(
     mut rx_output: Receiver<Certificate>,
     mut store: Store,
     output_file2: PathBuf,

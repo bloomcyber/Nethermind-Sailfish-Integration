@@ -92,3 +92,36 @@
   "sync_retry_delay": 5000,
   "sync_retry_nodes": 4
 }
+
+
+Working
+********************
+{
+  "batch_size": 220,          
+  "max_batch_delay": 1000,    
+  "header_size": 64,          
+  "max_header_delay": 3000,   
+  "gc_depth": 50,
+  "sync_retry_delay": 1000,
+  "sync_retry_nodes": 4
+}
+
+
+../target/debug/tcp_tx_sender valid_tx_0.json --addr 127.0.0.1:3014 --delay 1000
+**********************
+
+
+
+
+
+{
+  "batch_size": 130,             
+  "max_batch_delay": 20000,         
+  "header_size": 160,
+  "max_header_delay": 60000,
+  "gc_depth": 50,
+  "sync_retry_delay": 500,
+  "sync_retry_nodes": 4
+}
+
+
