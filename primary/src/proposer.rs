@@ -149,6 +149,7 @@ impl Proposer {
         } else {
             NoVoteCert::new(0) // Assuming NoVoteCert::new creates an empty certificate
         };
+
         let header = Header::new(
             self.name,
             self.round,
@@ -160,6 +161,17 @@ impl Proposer {
         )
         .await;
 
+
+        // if self.digests.is_empty() {
+        //     warn!("Header will be created with empty payload");
+        // } else {
+        //     info!(
+        //         "Header will be created with payload size {} ({} digests)",
+        //         self.payload_size,
+        //         self.digests.len()
+        //     );
+        // }
+        
         debug!("Created {:?}", header);
 
         #[cfg(feature = "benchmark")]
@@ -269,6 +281,14 @@ impl Proposer {
                 Some((digest, worker_id)) = self.rx_workers.recv() => {
                     self.payload_size += digest.size();
                     self.digests.push((digest, worker_id));
+                    
+                    // log header size accumulated 
+                    let required = self.header_size;
+                    let current = self.payload_size;
+                    info!(
+                        "Accumulated payload size: {} / {} (digest from worker {})",
+                        current, required, worker_id
+                    );
                 }
                 Some((timeout_cert, round)) = self.rx_timeout_cert.recv() => {
                     match round.cmp(&self.last_timeout_cert.round) {

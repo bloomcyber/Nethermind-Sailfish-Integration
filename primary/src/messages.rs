@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::convert::TryInto;
 use std::fmt;
+use log::{info,debug, warn};
 
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub struct Header {
@@ -43,7 +44,16 @@ impl Header {
             no_vote_cert,
         };
         let id = header.digest();
+        if header.payload.is_empty() {
+            warn!("Header will be created with empty payload");
+        } else {
+            info!(
+                "payload  {:?} ({} round)",
+                header.payload, header.round
+            );
+        }
         let signature = signature_service.request_signature(id.clone()).await;
+
         Self {
             id,
             signature,
