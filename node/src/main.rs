@@ -318,19 +318,35 @@ pub async fn analyze2(
 
             match store.read(digest.to_vec()).await {
                 Ok(Some(batch_bytes)) => {
-                    let txs: Vec<String> = String::from_utf8_lossy(&batch_bytes)
-                        .lines()
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty())
-                        .collect();
-
-                    tx_map.insert(digest_str, json!(txs));
+			match bincode::deserialize::<WorkerMessage>(&batch_bytes) {
+                        Ok(WorkerMessage::Batch(batch)) => {
+                            let txs: Vec<String> = batch
+                                .into_iter()
+                                .map(|tx| hex::encode(tx))
+                                .collect();
+                            tx_map.insert(digest_str, json!(txs));
+                        }
+                        _ => {
+                            tx_map.insert(digest_str, json!("invalid"));
+                        }
+                    }
                 }
                 _ => {
                     tx_map.insert(digest_str, json!("missing"));
                 }
             }
         }
+
+        // let votes_formatted: Vec<_> = certificate.votes.iter().map(|(k, v)| {
+        //     (
+        //         k.clone(),
+        //         json!({
+        //             "part1": encode(&v.part1),
+        //             "part2": encode(&v.part2)
+        //         })
+        //     )
+        // }).collect();
+        
 
         let cert_output = json!({
             "author": certificate.header.author.to_string(),
@@ -342,8 +358,9 @@ pub async fn analyze2(
             // "signature": encode(&certificate.header.signature),
             "signature": format!("{:?}", certificate.header.signature),
             "timeout_cert": certificate.header.timeout_cert,
-            "no_vote_cert": certificate.header.no_vote_cert,
-            "votes": certificate.votes
+            "no_vote_cert": certificate.header.no_vote_cert
+            // "votes": certificate.votes
+            // "votes": votes_formatted
         });
 
         writeln!(
@@ -376,7 +393,7 @@ pub async fn analyze3(
     while let Some(certificate) = rx_output.recv().await {
         let payload = &certificate.header.payload;
 
-        // ✅ Human-readable payload map
+        // Human-readable payload map
         let payload_json: BTreeMap<String, u32> = payload
             .iter()
             .map(|(digest, worker_id)| {
@@ -385,7 +402,7 @@ pub async fn analyze3(
             })
             .collect();
 
-        // ✅ Try loading the actual batch from store
+        // Try loading the actual batch from store
         for (digest, _worker_id) in payload {
             if let Ok(batch) = store.read(digest.to_vec()).await {
                 ordered_batches.push(batch);
@@ -394,7 +411,7 @@ pub async fn analyze3(
             }
         }
 
-        // ✅ Serialize certificate with readable payload
+        // Serialize certificate with readable payload
         let cert_with_readable_payload = serde_json::json!({
             "author": certificate.header.author,
             "round": certificate.header.round,
@@ -414,7 +431,7 @@ pub async fn analyze3(
         )?;
     }
 
-    // ✅ Write ordered batches
+    //  Write ordered batches
     write(
         output_file2,
         serde_json::to_string_pretty(&ordered_batches)?,

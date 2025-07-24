@@ -35,6 +35,9 @@ primary = { path = "../primary" }
 worker = { path = "../worker" }
 consensus = { path = "../consensus" }
 
+[dev-dependencies]
+tempfile = "3"
+
 [features]
 benchmark = ["worker/benchmark", "primary/benchmark", "consensus/benchmark"]
 

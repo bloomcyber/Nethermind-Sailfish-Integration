@@ -69,17 +69,9 @@ fn list_batches(db: &DB, cf: &rocksdb::ColumnFamily) {
     let iter = db.iterator_cf(cf, IteratorMode::Start);
     for (i, res) in iter.enumerate() {
         if let Ok((key, value)) = res {
-            match bincode::deserialize::<WorkerMessage>(&value) {
-                Ok(WorkerMessage::Batch(_)) => {
-                    println!("Batch {}: Digest = {}", i, hex::encode(key));
-                    println!("  Metadata: id=0, worker_id=0, timestamp=0");
-                }
-                Ok(_) => {
-                    println!("Key {} is not a Batch", hex::encode(&key));
-                }
-                Err(e) => {
-                    println!("Failed to decode entry at {}: {}", hex::encode(&key), e);
-                }
+		if let Ok(WorkerMessage::Batch(_)) = bincode::deserialize::<WorkerMessage>(&value) {
+        	        println!("Batch {}: Digest = {}", i, hex::encode(key));
+               	 println!("  Metadata: id=0, worker_id=0, timestamp=0");
             }
         }
     }

@@ -1,65 +1,62 @@
 # Sailfish
 
-This repo provides an implementation of Sailfish. The core consensus logic of Bullshark is modified to obtain Sailfish. The codebase has been designed to be small, efficient, and easy to benchmark and modify. It has not been designed to run in production but uses real cryptography ([dalek](https://doc.dalek.rs/ed25519_dalek)), networking ([tokio](https://docs.rs/tokio)), and storage ([rocksdb](https://docs.rs/rocksdb)).
+This repo is forked from the repository https://github.com/nibeshrestha/sailfish.
 
 ## Quick Start
 
-The core protocols are written in Rust, but all benchmarking scripts are written in Python and run with [Fabric](http://www.fabfile.org/).
-
-To deploy and benchmark a testbed of 4 nodes on your local machine, clone the repo and install the python dependencies:
 
 ```
-$ git clone https://github.com/nibeshrestha/sailfish.git
-$ cd sailfish/benchmark
+$ git clone https://github.com/bloomcyber/sailfish.git
+$ cd sailfish/
 $ pip install -r requirements.txt
 ```
 
-You also need to install Clang (required by rocksdb) and [tmux](https://linuxize.com/post/getting-started-with-tmux/#installing-tmux) (which runs all nodes and clients in the background). Finally, run a local benchmark using fabric:
+Compile 
+cargo build --features benchmark
 
-```
-$ fab local
-```
 
-This command may take a long time the first time you run it (compiling rust code in `release` mode may be slow) and you can customize a number of benchmark parameters in `fabfile.py`. When the benchmark terminates, it displays a summary of the execution similarly to the one below.
 
-```
------------------------------------------
- SUMMARY:
------------------------------------------
- + CONFIG:
- Faults: 0 node(s)
- Committee size: 4 node(s)
- Worker(s) per node: 1 worker(s)
- Collocate primary and workers: True
- Input rate: 50,000 tx/s
- Transaction size: 512 B
- Execution time: 19 s
 
- Header size: 1,000 B
- Max header delay: 1_000 ms
- GC depth: 50 round(s)
- Sync retry delay: 10,000 ms
- Sync retry nodes: 3 node(s)
- batch size: 500,000 B
- Max batch delay: 100 ms
 
- + RESULTS:
- Consensus TPS: 46,478 tx/s
- Consensus BPS: 23,796,531 B/s
- Consensus latency: 464 ms
 
- End-to-end TPS: 46,149 tx/s
- End-to-end BPS: 23,628,541 B/s
- End-to-end latency: 557 ms
------------------------------------------
-```
+#Run Sailfish 4 node network
+/bin/bash run_nodes.sh
 
-## Next Steps
+#Send rlp signed transactions in valid_txs file to the sailfish nodes for consensus
+./run_tx_senders_tmux.sh
 
-The next step is to read the paper Sailfish. It is then recommended to have a look at the README files of the [worker](https://github.com/asonnino/narwhal/tree/bullshark/worker) and [primary](https://github.com/asonnino/narwhal/tree/bullshark/primary) crates. 
+#Stop sending the transactions
+tmux kill-session -t sailfish_tx_senders
 
-The README file of the benchmark folder explains how to benchmark the codebase and read benchmarks' results. It also provides a step-by-step tutorial to run benchmarks on [Amazon Web Services (AWS)](https://aws.amazon.com) accross multiple data centers (WAN).
+#Check the final agreement of nodes on the final order.
+sha256sum .db-0/ordered_certificates.json .db-1/ordered_certificates.json .db-2/ordered_certificates.json .db-3/ordered_certificates.json
 
-## License
+b2816ed10d8580496326bd8ef45dd70941fc2415cf4e9b23d2307320100460dc  .db-0/ordered_certificates.json
+b2816ed10d8580496326bd8ef45dd70941fc2415cf4e9b23d2307320100460dc  .db-1/ordered_certificates.json
+b2816ed10d8580496326bd8ef45dd70941fc2415cf4e9b23d2307320100460dc  .db-2/ordered_certificates.json
+b2816ed10d8580496326bd8ef45dd70941fc2415cf4e9b23d2307320100460dc  .db-3/ordered_certificates.json
 
-This software is licensed as [Apache 2.0](LICENSE).
+
+#Optional
+#tail primary and worker logs of node 0 or 1 or 2 or 3
+script 0 
+for node 0 , tmux for primary and worker
+
+
+
+
+
+
+
+
+
+
+
+Isolated Nethermind Clients 
+tmux script run using 
+
+
+
+Python Scripts
+state_transition.py
+state_validity
