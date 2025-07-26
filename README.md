@@ -1,62 +1,81 @@
 # Sailfish
 
-This repo is forked from the repository https://github.com/nibeshrestha/sailfish.
+This repository is forked from [nibeshrestha/sailfish](https://github.com/nibeshrestha/sailfish).
 
 ## Quick Start
 
+Clone the repository and install Python dependencies:
 
-```
-$ git clone https://github.com/bloomcyber/sailfish.git
-$ cd sailfish/
-$ pip install -r requirements.txt
+```bash
+git clone https://github.com/bloomcyber/sailfish.git
+cd sailfish/
+pip install -r requirements.txt
 ```
 
-Compile 
+### Compile Rust Components
+
+```bash
 cargo build --features benchmark
+```
 
+## Running the Sailfish Network
 
+###  Launch a 4-node Sailfish network
 
-
-
-
-#Run Sailfish 4 node network
+```bash
 /bin/bash run_nodes.sh
+```
 
-#Send rlp signed transactions in valid_txs file to the sailfish nodes for consensus
+###  Send RLP-signed transactions to Sailfish nodes
+
+```bash
 ./run_tx_senders_tmux.sh
+```
 
-#Stop sending the transactions
+###  Stop sending transactions
+
+```bash
 tmux kill-session -t sailfish_tx_senders
+```
 
-#Check the final agreement of nodes on the final order.
+###  Check final agreement (ordered certificate hashes)
+
+```bash
 sha256sum .db-0/ordered_certificates.json .db-1/ordered_certificates.json .db-2/ordered_certificates.json .db-3/ordered_certificates.json
+```
 
+Example output:
+
+```
 b2816ed10d8580496326bd8ef45dd70941fc2415cf4e9b23d2307320100460dc  .db-0/ordered_certificates.json
 b2816ed10d8580496326bd8ef45dd70941fc2415cf4e9b23d2307320100460dc  .db-1/ordered_certificates.json
 b2816ed10d8580496326bd8ef45dd70941fc2415cf4e9b23d2307320100460dc  .db-2/ordered_certificates.json
 b2816ed10d8580496326bd8ef45dd70941fc2415cf4e9b23d2307320100460dc  .db-3/ordered_certificates.json
+```
 
+## Optional: Debugging Logs
 
-#Optional
-#tail primary and worker logs of node 0 or 1 or 2 or 3
-script 0 
-for node 0 , tmux for primary and worker
+To tail logs of a specific node (e.g., node-0):
 
+```bash
+script 0
+```
 
+Logs for primary and workers can be monitored using `tmux`.
 
+---
 
+## Isolated Nethermind Clients
 
+A tmux script is provided for launching isolated Nethermind clients. Refer to the appropriate shell script for details.
 
+---
 
+## Python Scripts
 
+- `state_transition.py`: Verifies batch to block consistency using Engine API.
+- `state_validity.py`: Additional validity checks and state evaluation.
 
+---
 
-
-Isolated Nethermind Clients 
-tmux script run using 
-
-
-
-Python Scripts
-state_transition.py
-state_validity
+Feel free to contribute or report issues!
