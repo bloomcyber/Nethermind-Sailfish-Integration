@@ -25,3 +25,6 @@ workspace.xml
 **/*.rs.bk
 scripts/build_and_fab
 
+
+#Files produced in Output Folder
+Output/*

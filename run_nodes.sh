@@ -6,7 +6,8 @@ set -e
 
 #clean .db*
 #rm -r .db*
-mkdir -p logs
+mkdir -p Output/sailfish_logs
+# mkdir -p Output
 BIN=target/debug/node
 
 BASE=setup_files/network_config_files
@@ -31,9 +32,9 @@ for i in 0 1 2 3; do
   $BIN $W_VERBOSITY run \
     --keys $BASE/node-$i.json \
     --committee $COMMITTEE \
-    --store .db-$i-0 \
+    --store Output/.db-$i-0 \
     --parameters $PARAMETERS \
-    worker --id 0  > logs/worker-$i-0.log  2>&1 &
+    worker --id 0  > Output/sailfish_logs/worker-$i-0.log  2>&1 &
   echo $! >> sailfish_pids.txt
   sleep 0.5
 
@@ -41,9 +42,9 @@ for i in 0 1 2 3; do
    $BIN $W_VERBOSITY run \
      --keys $BASE/node-$i.json \
      --committee $COMMITTEE \
-     --store .db-$i-1 \
+     --store Output/.db-$i-1 \
      --parameters $PARAMETERS \
-     worker --id 1 > logs/worker-$i-1.log 2>&1 &
+     worker --id 1 > Output/sailfish_logs/worker-$i-1.log 2>&1 &
    echo $! >> sailfish_pids.txt
    sleep 0.5
   
@@ -52,9 +53,9 @@ for i in 0 1 2 3; do
   $BIN $P_VERBOSITY run \
     --keys $BASE/node-$i.json \
     --committee $COMMITTEE \
-    --store .db-$i \
+    --store Output/.db-$i \
     --parameters $PARAMETERS \
-    primary > logs/primary-$i.log  2>&1 &
+    primary > Output/sailfish_logs/primary-$i.log  2>&1 &
   echo $! >> sailfish_pids.txt
 
   # sleep 6000
