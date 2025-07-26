@@ -1,0 +1,9 @@
+{
+  "batch_size": 220,          
+  "max_batch_delay": 1000,    
+  "header_size": 64,          
+  "max_header_delay": 3000,   
+  "gc_depth": 50,
+  "sync_retry_delay": 1000,
+  "sync_retry_nodes": 4
+}

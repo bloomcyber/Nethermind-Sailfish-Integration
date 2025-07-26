@@ -1,0 +1,76 @@
+{
+    "authorities": {
+        "W23PX/mmF841mvvQ3sVqAfQa+Je5DJP8LRcKorCGwmI=": {
+            "is_honest": true,
+            "stake": 1,
+            "consensus": {
+                "consensus_to_consensus": "127.0.0.1:3010"
+            },
+            "primary": {
+                "primary_to_primary": "127.0.0.1:3011",
+                "worker_to_primary": "127.0.0.1:3012"
+            },
+            "workers": {
+                "0": {
+                    "primary_to_worker": "127.0.0.1:3013",
+                    "transactions": "127.0.0.1:3014",
+                    "worker_to_worker": "127.0.0.1:3015"
+                }
+            }
+        },
+        "tp/ADzF/k6Y9IEtHlxvPgF5FQAsTbNFuSayefFj/ycs=": {
+            "is_honest": true,
+            "stake": 1,
+            "consensus": {
+                "consensus_to_consensus": "127.0.0.1:3020"
+            },
+            "primary": {
+                "primary_to_primary": "127.0.0.1:3021",
+                "worker_to_primary": "127.0.0.1:30022"
+            },
+            "workers": {
+                "0": {
+                    "primary_to_worker": "127.0.0.1:3023",
+                    "transactions": "127.0.0.1:3024",
+                    "worker_to_worker": "127.0.0.1:3025"
+                }
+            }
+        },
+        "XSrQJ5NUFy7r+1R1R1p6Uqxw5jOUIARoNaCYQ33DxnQ=": {
+            "is_honest": true,
+            "stake": 1,
+            "consensus": {
+                "consensus_to_consensus": "127.0.0.1:3030"
+            },
+            "primary": {
+                "primary_to_primary": "127.0.0.1:3031",
+                "worker_to_primary": "127.0.0.1:3032"
+            },
+            "workers": {
+                "0": {
+                    "primary_to_worker": "127.0.0.1:3033",
+                    "transactions": "127.0.0.1:3034",
+                    "worker_to_worker": "127.0.0.1:3035"
+                }
+            }
+        },
+        "pmEYTe4aJZ/cTeNiYzB+jgm/Q2amBIYdejAMB+bDBaU=": {
+            "is_honest": true,
+            "stake": 1,
+            "consensus": {
+                "consensus_to_consensus": "127.0.0.1:3040"
+            },
+            "primary": {
+                "primary_to_primary": "127.0.0.1:3041",
+                "worker_to_primary": "127.0.0.1:3042"
+            },
+            "workers": {
+                "0": {
+                    "primary_to_worker": "127.0.0.1:3043",
+                    "transactions": "127.0.0.1:3044",
+                    "worker_to_worker": "127.0.0.1:3045"
+                }
+            }
+        }
+    }
+}
