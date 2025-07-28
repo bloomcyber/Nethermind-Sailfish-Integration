@@ -1,0 +1,5 @@
+eth-account==0.5.4
+PyJWT==2.4.0
+requests==2.27.1
+requests-unixsocket==0.1.5
+bip-utils==1.11.1
