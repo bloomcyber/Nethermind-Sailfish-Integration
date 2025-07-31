@@ -18,7 +18,7 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use tokio::sync::mpsc::{channel, Receiver};
 use worker::Worker;
-use log::{debug, error, warn,info};
+use log::{debug, error, warn,info,trace};
 use hex;
 use std::collections::BTreeMap;
 use std::fs::{File, write};
@@ -140,14 +140,7 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
             analyze2(rx_output, store_base, output_file2, &mut cert_file).await?;
             unreachable!();
         }
-        // ("worker", Some(sub_matches)) => {
-        //     let id = sub_matches
-        //         .value_of("id")
-        //         .unwrap()
-        //         .parse::<WorkerId>()
-        //         .context("The worker id must be a positive integer")?;
-        //     Worker::spawn(keypair.name, id, committee, parameters, store.clone());
-        // }
+        
             ("worker", Some(sub_matches)) => {
             let id = sub_matches
                 .value_of("id")
@@ -171,48 +164,6 @@ struct JsonBatch {
     transactions: Vec<String>,
 }
 
-async fn analyze(mut rx_output: Receiver<Certificate>, mut store: Store, output_file: std::path::PathBuf, cert_file: &mut std::fs::File) {
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&output_file)
-        .expect("Failed to open output file");
-
-    while let Some(certificate) = rx_output.recv().await {
-        if let Ok(cert_line) = serde_json::to_string(&certificate) {
-            if let Err(e) = writeln!(cert_file, "{}", cert_line) {
-                error!("Failed to write certificate to file: {}", e);
-            }
-        }
-
-        for (digest, _) in certificate.header.payload.iter() {
-            debug!("Analyzing digest {}", digest);
-            match store.read(digest.to_vec()).await {
-                Ok(Some(bytes)) => {
-                    debug!("Read batch {} from store", digest);
-                    if let Ok(WorkerMessage::Batch(batch)) = bincode::deserialize::<WorkerMessage>(&bytes) {
-                        let record = JsonBatch {
-                            batch: hex::encode(&digest.0),
-                            transactions: batch.into_iter().map(|tx| hex::encode(&tx)).collect(),
-                        };
-                        match serde_json::to_string(&record) {
-                            Ok(line) => {
-                                if let Err(e) = writeln!(file, "{}", line) {
-                                    error!("Failed to write batch {} to file: {}", digest, e);
-                                } else {
-                                    debug!("Serialized batch {} to JSON", digest);
-                                }
-                            }
-                            Err(e) => error!("Failed to serialize batch {}: {}", digest, e),
-                        }
-                    }
-                }
-                Ok(None) => debug!("Batch {} not found in store", digest),
-                Err(e) => error!("Store read failed for batch {}: {}", digest, e),
-            }
-        }
-    }
-}
 
 
 
@@ -223,15 +174,28 @@ pub async fn analyze2(
     output_file2: PathBuf,
     cert_file: &mut File,
 ) -> Result<()> {
+    info!(
+        "analyze2 started. Output file: {:?}, store base: {}",
+        output_file2, store_base
+    );
+
     let mut ordered_batches: Vec<serde_json::Value> = Vec::new();
     let mut worker_stores: HashMap<WorkerId, Store> = HashMap::new();
 
     while let Some(certificate) = rx_output.recv().await {
+        trace!(
+            "Received certificate round {} from {} with {} digests",
+            certificate.header.round,
+            certificate.header.author,
+            certificate.header.payload.len()
+        );
         let mut payload_json = BTreeMap::new();
         let mut tx_map = BTreeMap::new();
 
         for (digest, worker_id) in &certificate.header.payload {
             let digest_str = encode(digest);
+
+            trace!("Processing digest {} from worker {}", digest_str, worker_id);
 
             payload_json.insert(digest_str.clone(), *worker_id);
 
@@ -240,11 +204,13 @@ pub async fn analyze2(
             } else {
                 let path = format!("{}-{}", store_base, worker_id);
                 while !Path::new(&path).exists() {
+                    trace!("Waiting for store {}", path);
                     sleep(Duration::from_millis(500)).await;
                 }
                 let s = Store::new_read_only(&path).unwrap_or_else(|e| {
                     panic!("Failed to open worker store at {}: {}", path, e);
                 });
+                debug!("Opened worker store {}", path);
                 worker_stores.insert(*worker_id, s.clone());
                 s
             };
@@ -264,14 +230,18 @@ pub async fn analyze2(
                             .into_iter()
                             .map(|tx| hex::encode(tx))
                             .collect();
-                        tx_map.insert(digest_str, json!(txs));
+                        let count = txs.len();
+                        tx_map.insert(digest_str.clone(), json!(txs));
+                        trace!("Added batch {} with {} txs", digest_str, count);
                     }
                     _ => {
-                        tx_map.insert(digest_str, json!("invalid"));
+                        tx_map.insert(digest_str.clone(), json!("invalid"));
+                        warn!("Invalid batch for digest {}", digest_str);
                     }
                 }
             } else {
-                tx_map.insert(digest_str, json!("missing"));
+                tx_map.insert(digest_str.clone(), json!("missing"));
+                debug!("Batch {} missing in store", digest_str);
             }
         }
 
@@ -297,14 +267,20 @@ pub async fn analyze2(
             serde_json::to_string_pretty(&cert_output)?
         )?;
 
+        debug!(
+            "Wrote certificate round {} with {} batches",
+            certificate.header.round,
+            certificate.header.payload.len()
+        );
+
         ordered_batches.push(cert_output);
     }
 
+    info!("Writing ordered batches output to {:?}", output_file2);
     write(
         output_file2,
         serde_json::to_string_pretty(&ordered_batches)?,
     )?;
-
     Ok(())
 }
 

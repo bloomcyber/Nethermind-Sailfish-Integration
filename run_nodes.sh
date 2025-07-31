@@ -15,7 +15,7 @@ BASE=setup_files/network_config_files
 PARAMETERS=$BASE/dev_parameters_try_new.json
  COMMITTEE=$BASE/two_worker_committee.json
 #COMMITTEE=$BASE/committee.json
-P_VERBOSITY=-vv
+P_VERBOSITY=-vvv
 W_VERBOSITY=-vvv
 
 PID_FILE=sailfish_pids.txt
