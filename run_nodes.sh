@@ -11,7 +11,8 @@ mkdir -p Output/sailfish_logs
 BIN=target/debug/node
 
 BASE=setup_files/network_config_files
-PARAMETERS=$BASE/dev_parameters_try.json
+#PARAMETERS=$BASE/dev_parameters_try.json
+PARAMETERS=$BASE/dev_parameters_try_new.json
  COMMITTEE=$BASE/two_worker_committee.json
 #COMMITTEE=$BASE/committee.json
 P_VERBOSITY=-vv
