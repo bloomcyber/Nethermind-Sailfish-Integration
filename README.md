@@ -1,7 +1,7 @@
 
 # Sailfish [Documentation not yet completed]
 
-This repository is forked from [nibeshrestha/sailfish](https://github.com/nibeshrestha/sailfish).
+This repository is forked from [nibeshrestha/sailfish](https://github.com/nibeshrestha/sailfish). The work presented here is done during my internship at Nethermind. 
 
 ## Quick Start
 
