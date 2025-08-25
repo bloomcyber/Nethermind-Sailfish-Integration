@@ -26,13 +26,13 @@ for (( i=1; i<=ROUNDS; i++ )); do
     exit 1
   fi
 
-  echo " sleeping 3s before applying transitions..."
-  sleep 3
+  echo " sleeping 5s before applying transitions..."
+  sleep 5
 
   echo "--- state transition (#$i) ---"
-  python3 state_transition_main.py "${ENDPOINTS[@]}"
+  python3 state_transition_with_retry.py "${ENDPOINTS[@]}"
   if [ $? -ne 0 ]; then
-    echo " state_transition_main.py failed on round $i"
+    echo " state_transition_with_retry.py failed on round $i"
     exit 1
   fi
 

@@ -8,8 +8,6 @@ use consensus::Consensus;
 use env_logger::Env;
 use primary::{Certificate, Primary};
 use store::Store;
-use std::collections::HashMap;
-use tokio::time::{sleep, Duration};
 use worker::WorkerMessage;
 use serde::Serialize;
 use serde_json::json;
@@ -18,7 +16,7 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use tokio::sync::mpsc::{channel, Receiver};
 use worker::Worker;
-use log::{debug, error, warn,info,trace};
+use log::{debug, error, warn,info};
 use hex;
 use std::collections::BTreeMap;
 use std::fs::{File, write};
@@ -102,7 +100,6 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
     };
 
     let store = Store::new(store_path).context("Failed to create a store")?;
-    let store_base = store_path.to_string();
 
     let consensus_output_file = PathBuf::from(store_path).join("ordered_certificates.json");
     let mut cert_file = OpenOptions::new()
@@ -110,6 +107,22 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
         .append(true)
         .open(&consensus_output_file)
         .expect("Failed to open output file for certificates");
+
+    let analysis_store = match matches.subcommand() {
+        ("primary", _) => {
+            let path = format!("{}-0", store_path);
+            if Path::new(&path).exists() {
+                Store::new_read_only(&path).unwrap_or_else(|_| {
+                    warn!("Failed to open worker store at '{}'. Using primary store instead.", path);
+                    store.clone()
+                })
+            } else {
+                warn!("Worker store not found at '{}'. Will skip batch content lookup.", path);
+                store.clone()
+            }
+        }
+        _ => store.clone(),
+    };
 
     let (tx_output, rx_output) = channel(CHANNEL_CAPACITY);
 
@@ -135,9 +148,11 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
                 tx_feedback,
                 tx_output,
             );
-          
+            let output_file = PathBuf::from(store_path).join("ordered_batches.json");
+            // analyze(rx_output, analysis_store, output_file, &mut cert_file).await;
             let output_file2 = PathBuf::from(store_path).join("ordered_batches2.json");
-            analyze2(rx_output, store_base, output_file2, &mut cert_file).await?;
+            analyze2(rx_output, analysis_store, output_file2, &mut cert_file).await;
+
             unreachable!();
         }
         
@@ -166,85 +181,75 @@ struct JsonBatch {
 
 
 
-
-
 pub async fn analyze2(
     mut rx_output: Receiver<Certificate>,
-    store_base: String,
+    mut store: Store,
     output_file2: PathBuf,
     cert_file: &mut File,
-) -> Result<()> {
-    info!(
-        "analyze2 started. Output file: {:?}, store base: {}",
-        output_file2, store_base
-    );
-
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut ordered_batches: Vec<serde_json::Value> = Vec::new();
-    let mut worker_stores: HashMap<WorkerId, Store> = HashMap::new();
 
     while let Some(certificate) = rx_output.recv().await {
-        trace!(
-            "Received certificate round {} from {} with {} digests",
-            certificate.header.round,
-            certificate.header.author,
-            certificate.header.payload.len()
-        );
         let mut payload_json = BTreeMap::new();
         let mut tx_map = BTreeMap::new();
 
         for (digest, worker_id) in &certificate.header.payload {
             let digest_str = encode(digest);
 
-            trace!("Processing digest {} from worker {}", digest_str, worker_id);
-
             payload_json.insert(digest_str.clone(), *worker_id);
 
-            let mut store = if let Some(s) = worker_stores.get(worker_id) {
-                s.clone()
-            } else {
-                let path = format!("{}-{}", store_base, worker_id);
-                while !Path::new(&path).exists() {
-                    trace!("Waiting for store {}", path);
-                    sleep(Duration::from_millis(500)).await;
-                }
-                let s = Store::new_read_only(&path).unwrap_or_else(|e| {
-                    panic!("Failed to open worker store at {}: {}", path, e);
-                });
-                debug!("Opened worker store {}", path);
-                worker_stores.insert(*worker_id, s.clone());
-                s
-            };
-
-            let batch_bytes = match store.read(digest.to_vec()).await {
-                Ok(Some(bytes)) => Some(bytes),
-                _ => match store.notify_read(digest.to_vec()).await {
-                    Ok(bytes) => Some(bytes),
-                    Err(_) => None,
-                },
-            };
-
-            if let Some(batch_bytes) = batch_bytes {
-                match bincode::deserialize::<WorkerMessage>(&batch_bytes) {
-                    Ok(WorkerMessage::Batch(batch)) => {
-                        let txs: Vec<String> = batch
-                            .into_iter()
-                            .map(|tx| hex::encode(tx))
-                            .collect();
-                        let count = txs.len();
-                        tx_map.insert(digest_str.clone(), json!(txs));
-                        trace!("Added batch {} with {} txs", digest_str, count);
-                    }
-                    _ => {
-                        tx_map.insert(digest_str.clone(), json!("invalid"));
-                        warn!("Invalid batch for digest {}", digest_str);
+            match store.read(digest.to_vec()).await {
+                Ok(Some(batch_bytes)) => {
+			match bincode::deserialize::<WorkerMessage>(&batch_bytes) {
+                        Ok(WorkerMessage::Batch(batch)) => {
+                            let txs: Vec<String> = batch
+                                .into_iter()
+                                .map(|tx| hex::encode(tx))
+                                .collect();
+                            tx_map.insert(digest_str, json!(txs));
+                        }
+                        _ => {
+                            tx_map.insert(digest_str, json!("invalid"));
+                        }
                     }
                 }
-            } else {
-                tx_map.insert(digest_str.clone(), json!("missing"));
-                debug!("Batch {} missing in store", digest_str);
+                _ => {
+                    tx_map.insert(digest_str, json!("missing"));
+                }
             }
         }
 
+        let timeout_cert_json = {
+            let tc = &certificate.header.timeout_cert;
+            serde_json::json!({
+                "round": tc.round,
+                "timeouts": tc
+                    .timeouts
+                    .iter()
+                    .map(|(pk, sig)| {
+                        // let sig_compact = format!("{}.{}", base64::encode(&sig.part1), base64::encode(&sig.part2));
+                        // serde_json::json!([ base64::encode(pk), sig_compact ])
+                        serde_json::json!([ pk.to_string(), format!("{:?}", sig) ])
+                    })
+                    .collect::<Vec<_>>()
+            })
+        };
+
+        let no_vote_cert_json = {
+            let nvc = &certificate.header.no_vote_cert;
+            serde_json::json!({
+                "round": nvc.round,
+                "no_votes": nvc
+                    .no_votes
+                    .iter()
+                    .map(|(pk, sig)| {
+                        // let sig_compact = format!("{}.{}", base64::encode(&sig.part1), base64::encode(&sig.part2));
+                        // serde_json::json!([ base64::encode(pk), sig_compact ])
+                        serde_json::json!([ pk.to_string(), format!("{:?}", sig) ])
+                    })
+                    .collect::<Vec<_>>()
+            })
+        };
 
         let cert_output = json!({
             "author": certificate.header.author.to_string(),
@@ -255,8 +260,12 @@ pub async fn analyze2(
             "parents": certificate.header.parents.iter().map(|d| encode(d)).collect::<Vec<_>>(),
             // "signature": encode(&certificate.header.signature),
             "signature": format!("{:?}", certificate.header.signature),
-            "timeout_cert": certificate.header.timeout_cert,
-            "no_vote_cert": certificate.header.no_vote_cert
+            // "timeout_cert": render_timeout_cert(&certificate.header.timeout_cert),
+            // "no_vote_cert": render_no_vote_cert(&certificate.header.no_vote_cert),
+            "timeout_cert": timeout_cert_json,
+            "no_vote_cert": no_vote_cert_json
+            // "timeout_cert": certificate.header.timeout_cert,
+            // "no_vote_cert": certificate.header.no_vote_cert
             // "votes": certificate.votes
             // "votes": votes_formatted
         });
@@ -267,20 +276,14 @@ pub async fn analyze2(
             serde_json::to_string_pretty(&cert_output)?
         )?;
 
-        debug!(
-            "Wrote certificate round {} with {} batches",
-            certificate.header.round,
-            certificate.header.payload.len()
-        );
-
         ordered_batches.push(cert_output);
     }
 
-    info!("Writing ordered batches output to {:?}", output_file2);
     write(
         output_file2,
         serde_json::to_string_pretty(&ordered_batches)?,
     )?;
+
     Ok(())
 }
 

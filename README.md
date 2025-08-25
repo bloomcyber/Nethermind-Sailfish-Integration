@@ -19,6 +19,29 @@ pip install -r requirements.txt
 cargo build --features benchmark
 ```
 
+### Get Nethermind Binary
+The codebase uses nethermind client version 1.31.11
+get the nethermind 1.31.11 from https://github.com/NethermindEth/nethermind/releases/tag/1.31.11 and place it under Nethermind folder. 
+The code assumes the nethermind binary is present in the Working_directory/Nethermind/ folder and the folder should look like below 
+
+Nethermind 
+nethermind
+configs
+
+```
+ls Nethermind/
+configs  Data  logs  nethermind  nethermind-cli  Nethermind.Runner  nethermind.staticwebassets.endpoints.json  NLog.config  plugins
+```
+
+```
+Nethermind/nethermind --version
+Version:    1.31.11+2be1890e
+Commit:     2be1890ee4f21f921a471de058dcb57937bd9b90
+Build date: 2025-05-22 08:48:38Z
+Runtime:    .NET 9.0.5
+Platform:   Linux x64
+```
+
 ## Running the Sailfish Network
 
 ###  Launch a 4-node Sailfish network
@@ -80,3 +103,8 @@ A tmux script is provided for launching isolated Nethermind clients. Refer to th
 ---
 
 Feel free to contribute or report issues!
+
+
+
+
+python3 extract_batches_from_ordered_certs.py --input Output/.db-0/ordered_certificates.json --output Output/.db-0/ordered_batches_nm.json --sailfish-cli target/debug/sailfish_batch_cli --db Output/.db-0-0/ --retry-interval 5.0 --max-retries 120 -v

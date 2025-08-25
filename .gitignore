@@ -26,5 +26,9 @@ workspace.xml
 scripts/build_and_fab
 
 
-#Files produced in Output Folder
+#Ignore Files produced in Output Folder
 Output/*
+
+
+#Ignore Nethermind files
+Nethermind/*

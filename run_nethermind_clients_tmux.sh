@@ -7,8 +7,8 @@
 
 SESSION="isolated-nethermind"
 BASE_DIR="$PWD"
-CHAINSPEC="${BASE_DIR}/chain_data/chainspec.json"
-JWT="chain_data/jwt-secret"
+CHAINSPEC="${BASE_DIR}/chain_data/chainspec_100000.json"
+JWT="${BASE_DIR}/chain_data/jwt-secret"
 OUTPUT_DIR="$BASE_DIR/Output"
 mkdir -p "$OUTPUT_DIR"
 
@@ -19,11 +19,12 @@ tmux kill-session -t "$SESSION" 2>/dev/null
 tmux new-session -d -s "$SESSION"
 
 for i in 1 2 3 4; do
+  idx=$((i-1))
   RPC_PORT=$((8544 + i))
   ENGINE_PORT=$((8550 + i))
   METRICS_PORT=$((8007 + i))
-  DATA_DIR="${OUTPUT_DIR}/node${i}"
-  IPC_SOCK="${OUTPUT_DIR}/node${i}.ipc"
+  DATA_DIR="${OUTPUT_DIR}/node${idx}"
+  IPC_SOCK="${OUTPUT_DIR}/node${idx}.ipc"
   WINDOW_NAME="node${i}"
 
 
@@ -31,7 +32,7 @@ for i in 1 2 3 4; do
     --config none \
     --data-dir=\"$DATA_DIR\" \
     --Init.ChainSpecPath=\"$CHAINSPEC\" \
-    --Init.BaseDbPath=\"node${i}/db2\" \
+    --Init.BaseDbPath=\"node${idx}/db2\" \
     --JsonRpc.Enabled=true \
     --JsonRpc.Host=127.0.0.1 \
     --JsonRpc.Port=$RPC_PORT \

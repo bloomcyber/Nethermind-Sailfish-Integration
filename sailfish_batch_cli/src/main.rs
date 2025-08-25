@@ -1,104 +1,124 @@
 //! A CLI tool to scan and print Sailfish batches from RocksDB with optional JSON and listing support
 
-use rocksdb::{Options, DB, IteratorMode};
+use base64::{Engine as _, engine::general_purpose};
 use bincode;
-use serde_json::json;
-use std::env;
-use base64::{engine::general_purpose, Engine as _};
-use worker::WorkerMessage;
 use hex;
+use rocksdb::{DB, IteratorMode, Options};
+use serde_json::json;
+use std::collections::HashSet;
+use std::env;
+use worker::WorkerMessage;
 
-fn print_batch_by_key(db: &DB, cf: &rocksdb::ColumnFamily, key_input: &str, json: bool) {
-    let key_bytes = if let Ok(hex) = hex::decode(key_input) {
-        hex
+fn decode_key_input(key_input: &str) -> Option<Vec<u8>> {
+    if let Ok(hex) = hex::decode(key_input) {
+        Some(hex)
     } else if let Ok(base64) = general_purpose::STANDARD.decode(key_input) {
-        base64
-    } else if let Ok(index) = key_input.parse::<usize>() {
-        let iter = db.iterator_cf(cf, IteratorMode::Start);
-        let digest = iter.skip(index).next().map(|res| res.unwrap().0.to_vec());
-        if let Some(d) = digest {
-            d
-        } else {
-            println!("No batch at index {}", index);
-            return;
-        }
+        Some(base64)
     } else {
-        println!("Invalid input: must be hex, base64, or integer index");
-        return;
-    };
-
-    match db.get_cf(cf, &key_bytes) {
-        Ok(Some(value)) => {
-            match bincode::deserialize::<WorkerMessage>(&value) {
-                Ok(WorkerMessage::Batch(txs)) => {
-                    if json {
-                        // Convert transactions to hex strings
-                        let txs_hex: Vec<String> = txs.iter().map(|tx| hex::encode(tx)).collect();
-                        let output = json!({
-                            "digest": hex::encode(&key_bytes),
-                            "metadata": {
-                                "id": 0,
-                                "worker_id": 0,
-                                "timestamp": 0
-                            },
-                            "txns": txs_hex
-                        });
-                        println!("{}", serde_json::to_string_pretty(&output).unwrap());
-                    } else {
-                        println!("Batch Digest = {}", hex::encode(&key_bytes));
-                        println!("  Metadata: id=0, worker_id=0, timestamp=0");
-                        for (j, tx) in txs.iter().enumerate() {
-                            println!("    Tx {}: 0x{}", j, hex::encode(tx));
-                        }
-                    }
-                }
-                Ok(_) => {
-                    println!("Key {} is not a WorkerMessage::Batch variant", key_input);
-                }
-                Err(e) => {
-                    println!("Failed to decode WorkerMessage: {}", e);
-                }
-            }
-        }
-        Ok(None) => println!("No batch found with key {}", key_input),
-        Err(e) => println!("Error retrieving batch: {}", e),
+        None
     }
 }
 
-fn list_batches(db: &DB, cf: &rocksdb::ColumnFamily) {
-    let iter = db.iterator_cf(cf, IteratorMode::Start);
-    for (i, res) in iter.enumerate() {
-        if let Ok((key, value)) = res {
-		if let Ok(WorkerMessage::Batch(_)) = bincode::deserialize::<WorkerMessage>(&value) {
-        	        println!("Batch {}: Digest = {}", i, hex::encode(key));
-               	 println!("  Metadata: id=0, worker_id=0, timestamp=0");
+fn print_batch_from_db(db: &DB, cf: &rocksdb::ColumnFamily, key_bytes: &[u8], json: bool) -> bool {
+    match db.get_cf(cf, key_bytes) {
+        Ok(Some(value)) => match bincode::deserialize::<WorkerMessage>(&value) {
+            Ok(WorkerMessage::Batch(txs)) => {
+                if json {
+                    let txs_hex: Vec<String> = txs.iter().map(|tx| hex::encode(tx)).collect();
+                    let output = json!({
+                        "digest": hex::encode(key_bytes),
+                        "txns": txs_hex
+                    });
+                    println!("{}", serde_json::to_string_pretty(&output).unwrap());
+                } else {
+                    let txs_hex: Vec<String> = txs.iter().map(|tx| hex::encode(tx)).collect();
+                    println!("{}: {:?}", hex::encode(key_bytes), txs_hex);
+                }
+                true
+            }
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+fn list_batches(db_paths: &[String]) {
+    let mut seen = HashSet::new();
+    for path in db_paths {
+        let db = DB::open_cf_for_read_only(&Options::default(), path, vec!["default"], false)
+            .expect("Failed to open DB");
+        let cf = db
+            .cf_handle("default")
+            .expect("Missing 'default' column family");
+        let iter = db.iterator_cf(cf, IteratorMode::Start);
+        for res in iter {
+            if let Ok((key, value)) = res {
+                if let Ok(WorkerMessage::Batch(_)) = bincode::deserialize::<WorkerMessage>(&value) {
+                    let digest = hex::encode(&key);
+                    if seen.insert(digest.clone()) {
+                        println!("{}", digest);
+                    }
+                }
             }
         }
     }
+}
+
+fn print_batch_from_dbs(db_paths: &[String], key_input: &str, json: bool) {
+    let key_bytes = match decode_key_input(key_input) {
+        Some(b) => b,
+        None => {
+            println!("Invalid digest: must be hex or base64");
+            return;
+        }
+    };
+
+    for path in db_paths {
+        let db = DB::open_cf_for_read_only(&Options::default(), path, vec!["default"], false)
+            .expect("Failed to open DB");
+        let cf = db
+            .cf_handle("default")
+            .expect("Missing 'default' column family");
+        if print_batch_from_db(&db, cf, &key_bytes, json) {
+            return;
+        }
+    }
+    println!("Batch not found in provided databases");
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    let mut args: Vec<String> = env::args().skip(1).collect();
+
+    let json = if let Some(pos) = args.iter().position(|s| s == "--json") {
+        args.remove(pos);
+        true
+    } else {
+        false
+    };
+
+    let list_mode = if let Some(pos) = args.iter().position(|s| s == "--list") {
+        args.remove(pos);
+        true
+    } else {
+        false
+    };
+
+    if list_mode {
+        if args.is_empty() {
+            eprintln!("Usage: sailfish_batch_cli [--json] --list <db_path> [db_path ...]");
+            std::process::exit(1);
+        }
+        list_batches(&args);
+        return;
+    }
+
     if args.len() < 2 {
-        eprintln!("Usage: sailfish_batch_cli <rocksdb_path> [<batch_key|--list>] [--json]");
+        eprintln!("Usage: sailfish_batch_cli [--json] <batch_digest> <db_path> [db_path ...]");
         std::process::exit(1);
     }
 
-    let db_path = &args[1];
-    let json = args.contains(&"--json".to_string());
-    let list_mode = args.get(2).map(|s| s == "--list").unwrap_or(false);
-    let key_input = if args.len() >= 3 && !list_mode { Some(&args[2]) } else { None };
+    let key_input = args.remove(0);
+    let db_paths = args;
 
-    let db = DB::open_cf_for_read_only(&Options::default(), db_path, vec!["default"], false)
-        .expect("Failed to open DB");
-    let cf = db.cf_handle("default").expect("Missing 'default' column family");
-
-    if list_mode {
-        list_batches(&db, cf);
-    } else if let Some(key) = key_input {
-        print_batch_by_key(&db, cf, key, json);
-    } else {
-        eprintln!("Error: Please provide either a batch key or --list");
-    }
+    print_batch_from_dbs(&db_paths, &key_input, json);
 }
-

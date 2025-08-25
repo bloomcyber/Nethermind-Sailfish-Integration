@@ -9,14 +9,16 @@ tmux kill-session -t $SESSION 2>/dev/null
 # Start new session
 tmux new-session -d -s $SESSION
 
-BASE=setup_files/valid_txs
+#BASE=setup_files/valid_txs
+
+BASE=$PWD/Output
 
 # Define commands
 declare -a cmds=(
-  "$TX_SENDER_BIN $BASE/valid_tx_0.json --addr 127.0.0.1:3014 --delay 1000"
-  "$TX_SENDER_BIN $BASE/valid_tx_1.json --addr 127.0.0.1:3024 --delay 1000"
-  "$TX_SENDER_BIN $BASE/valid_tx_2.json --addr 127.0.0.1:3034 --delay 1000"
-  "$TX_SENDER_BIN $BASE/valid_tx_3.json --addr 127.0.0.1:3044 --delay 1000"
+  "$TX_SENDER_BIN $BASE/valid_txs_part_1_quoted.txt --addr 127.0.0.1:3014 --delay 1000"
+  "$TX_SENDER_BIN $BASE/valid_txs_part_2_quoted.txt --addr 127.0.0.1:3024 --delay 1000"
+  "$TX_SENDER_BIN $BASE/valid_txs_part_3_quoted.txt --addr 127.0.0.1:3034 --delay 1000"
+  "$TX_SENDER_BIN $BASE/valid_txs_part_4_quoted.txt --addr 127.0.0.1:3044 --delay 1000"
 )
 
 # Run commands in tmux panes

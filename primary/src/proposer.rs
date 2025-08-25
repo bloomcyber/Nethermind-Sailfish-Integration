@@ -4,7 +4,7 @@ use crate::primary::Round;
 use config::{Committee, WorkerId};
 use crypto::Hash as _;
 use crypto::{Digest, PublicKey, SignatureService};
-#[cfg(feature = "benchmark")]
+// #[cfg(feature = "benchmark")]
 use log::info;
 use log::{debug, warn};
 use std::cmp::Ordering;
