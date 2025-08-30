@@ -19,7 +19,7 @@ start() {
       "python3 extract_batches_from_ordered_certs.py \
         --input Output/.db-0/ordered_certificates.json \
         --output Output/transactions_batch_node_0.json \
-        --sailfish-cli ./target/debug/sailfish_batch_cli \
+        --sailfish-cli ./target/release/sailfish_batch_cli \
         --db Output/.db-0-0/ --db Output/.db-0-1 -vv" C-m
 
     # Window 1: node 1
@@ -28,7 +28,7 @@ start() {
       "python3 extract_batches_from_ordered_certs.py \
         --input Output/.db-1/ordered_certificates.json \
         --output Output/transactions_batch_node_1.json \
-        --sailfish-cli ./target/debug/sailfish_batch_cli \
+        --sailfish-cli ./target/release/sailfish_batch_cli \
         --db Output/.db-1-0/ --db Output/.db-1-1 -vv" C-m
 
     # Window 2: node 2
@@ -37,7 +37,7 @@ start() {
       "python3 extract_batches_from_ordered_certs.py \
         --input Output/.db-2/ordered_certificates.json \
         --output Output/transactions_batch_node_2.json \
-        --sailfish-cli ./target/debug/sailfish_batch_cli \
+        --sailfish-cli ./target/release/sailfish_batch_cli \
         --db Output/.db-2-0/ --db Output/.db-2-1 -vv" C-m
 
     # Window 3: node 3
@@ -46,7 +46,7 @@ start() {
       "python3 extract_batches_from_ordered_certs.py \
         --input Output/.db-3/ordered_certificates.json \
         --output Output/transactions_batch_node_3.json \
-        --sailfish-cli ./target/debug/sailfish_batch_cli \
+        --sailfish-cli ./target/release/sailfish_batch_cli \
         --db Output/.db-3-0/ --db Output/.db-3-1 -vv" C-m
 
     # Attach to the session

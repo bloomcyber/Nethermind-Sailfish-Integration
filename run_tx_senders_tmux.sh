@@ -1,7 +1,7 @@
 #!/bin/bash
 
 SESSION="sailfish_tx_senders"
-TX_SENDER_BIN="target/debug/tcp_tx_sender"
+TX_SENDER_BIN="target/release/tcp_tx_sender"
 
 # Clean up previous session
 tmux kill-session -t $SESSION 2>/dev/null
@@ -9,9 +9,9 @@ tmux kill-session -t $SESSION 2>/dev/null
 # Start new session
 tmux new-session -d -s $SESSION
 
-#BASE=setup_files/valid_txs
+BASE=setup_files/valid_txs
 
-BASE=$PWD/Output
+#BASE=$PWD/Output
 
 # Define commands
 declare -a cmds=(

@@ -8,7 +8,7 @@ set -e
 #rm -r .db*
 mkdir -p Output/sailfish_logs
 # mkdir -p Output
-BIN=target/debug/node
+BIN=target/release/node
 
 BASE=setup_files/network_config_files
 #PARAMETERS=$BASE/dev_parameters_try.json
