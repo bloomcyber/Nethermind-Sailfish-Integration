@@ -23,6 +23,7 @@ Clone the repository and install Python dependencies:
 git clone https://github.com/bloomcyber/Nethermind-Sailfish-Integration.git
 cd Nethermind-Sailfish-Integration
 pip install -r requirements.txt
+sudo apt install clang libclang-dev llvm-dev tmux
 ```
 - Note: Python 3.8.10 is used. Higher versions may require changes in the python files.
 
