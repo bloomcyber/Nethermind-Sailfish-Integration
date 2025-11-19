@@ -8,6 +8,10 @@ This repository integrates the **Sailfish** consensus with **Nethermind** execut
 - We extract the ordered transactions and **execute** them in **isolated Nethermind clients** (no p2p/gossip).
 - Since all nodes agree on the order, the **final state** in their Nethermind clients converges.
 ![Integration Design](.assets/sailfish-Design-1.svg)
+<p align="center">
+  <img src=".assets/sailfish-Design-1.svg" width="500" alt="Sailfish–Nethermind Integration Design" title="Sailfish–Nethermind Integration Design">
+</p>
+
 
 ## Credits
 
