@@ -9,7 +9,7 @@ This repository integrates the **Sailfish** consensus with **Nethermind** execut
 - Since all nodes agree on the order, the **final state** in their Nethermind clients converges.
 ![Integration Design](.assets/sailfish-Design-1.svg)
 <p align="center">
-  <img src=".assets/sailfish-Design-1.svg" width="500" alt="Sailfish–Nethermind Integration Design" title="Sailfish–Nethermind Integration Design">
+  <img src=".assets/sailfish-Design-1.svg" width="1500" alt="Sailfish–Nethermind Integration Design" title="Sailfish–Nethermind Integration Design">
 </p>
 
 
